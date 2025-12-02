@@ -1,0 +1,16 @@
+# Python venv
+venv/
+
+# Local environment variables
+.env
+
+# GCP credentials
+keys/*.json
+
+# __pycache__
+__pycache__/
+*.pyc
+
+# IDE configs
+.vscode/
+.idea/
