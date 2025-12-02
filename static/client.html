@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Speech to Text WebSocket</title>
+</head>
+<body>
+  <h2>🎤 Streaming Speech-to-Text</h2>
+  <button id="start">Start</button>
+  <button id="stop">Stop</button>
+  <p><strong>Transcription:</strong></p>
+  <div id="output"></div>
+
+<script>
+let ws;
+let audioContext;
+let mic;
+let workletNode;
+let stream;
+
+async function startTranscription() {
+  ws = new WebSocket("ws://127.0.0.1:8000/ws/transcribe");
+
+  ws.onopen = () => console.log("WS conectado");
+  ws.onclose = () => console.log("WS cerrado");
+
+  ws.onmessage = (event) => {
+    const output = document.getElementById("output");
+    const data = JSON.parse(event.data);
+    output.innerHTML = data.text;
+  };
+
+  audioContext = new AudioContext({ sampleRate: 48000 });
+
+  await audioContext.audioWorklet.addModule("/static/recorder-worklet.js");
+
+  stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  mic = audioContext.createMediaStreamSource(stream);
+
+  console.log("🎙️ Micrófono OK:", stream);
+
+  workletNode = new AudioWorkletNode(audioContext, "recorder-worklet");
+
+  workletNode.port.onmessage = (event) => {
+    if (ws.readyState === WebSocket.OPEN) {
+      console.log("📡 Enviando frame:", event.data.byteLength);
+      ws.send(event.data);
+    }
+  };
+
+  mic.connect(workletNode);
+  workletNode.connect(audioContext.destination);
+}
+
+document.getElementById("start").onclick = startTranscription;
+
+document.getElementById("stop").onclick = () => {
+  console.log("⛔ Stop transcription");
+
+  if (workletNode) workletNode.disconnect();
+  if (mic) mic.disconnect();
+  if (audioContext) audioContext.close();
+
+  if (ws && ws.readyState === WebSocket.OPEN) ws.close();
+
+  // 🔥 Detener realmente el micrófono y apagar icono rojo
+  if (stream) {
+    stream.getTracks().forEach(track => track.stop());
+    console.log("🎤 Mic detenido");
+  }
+};
+</script>
+
+</body>
+</html>
